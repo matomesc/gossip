@@ -3,7 +3,7 @@ var sinon = require('sinon');
 var zmq = require('zmq');
 var Hub = require('../core/hub');
 
-describe.only('core.Hub', function () {
+describe('core.Hub', function () {
 
   var hub;
 
@@ -16,8 +16,7 @@ describe.only('core.Hub', function () {
   });
 
   afterEach(function (done) {
-    hub.close();
-    done();
+    hub.close(done);
   });
 
   describe('new Hub() with id and router endpoint', function () {
@@ -79,7 +78,7 @@ describe.only('core.Hub', function () {
       assert(hub.routerSocket.on.calledOnce);
       assert(hub.pubSocket.on.calledOnce);
       done();
-    })
+    });
   });
 
   describe('hub.close()', function () {
@@ -88,7 +87,7 @@ describe.only('core.Hub', function () {
     var subSpy;
     var ackPrunerSpy;
 
-    before(function () {
+    beforeEach(function (done) {
       hub.bind();
 
       routerSpy = sinon.spy(hub.routerSocket, 'close');
@@ -96,7 +95,7 @@ describe.only('core.Hub', function () {
       subSpy = sinon.spy(hub.subSocket, 'close');
       ackPrunerSpy = sinon.spy(hub, '_stopAckPruner');
 
-      hub.close();
+      hub.close(done);
     });
 
     it('should close the router, pub and sub sockets', function (done) {
@@ -113,25 +112,25 @@ describe.only('core.Hub', function () {
   });
 
   describe('hub.handshake(otherHub)', function () {
-    it('should connect the hub to the other hub', function (done) {
-      var hub = new Hub({
-        id: 'a',
-        router: 'tcp://127.0.0.1:5000'
-      }).bind();
 
-      var otherHub = new Hub({
+    var otherHub;
+
+    beforeEach(function (done) {
+      hub.bind();
+      otherHub = new Hub({
         id: 'b',
         router: 'tcp://127.0.0.1:6000'
       }).bind();
+      done();
+    });
 
+    afterEach(function (done) {
+      otherHub.close(done);
+    });
+
+    it('should connect the hub to the other hub', function (done) {
       hub.handshake(otherHub, function (err) {
         assert.ifError(err);
-
-        console.log('handshake complete');
-
-        hub.close();
-        otherHub.close();
-
         done();
       });
     });
