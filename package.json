@@ -23,7 +23,9 @@
   "dependencies": {
     "zmq": "~2.4.0",
     "node-uuid": "~1.4.0",
-    "callsite": "~1.0.0"
+    "callsite": "~1.0.0",
+    "retry": "~0.6.0",
+    "stately.js": "~1.1.0"
   },
   "devDependencies": {
     "mocha": "~1.12.0",
