@@ -18,6 +18,7 @@ var utils = require('./utils');
  * It facilitates 1-N communication between connected endpoints by using a router, pub and sub sockets.
  *
  * @class   Hub
+ * @extends EventEmitter
  * @module  core
  * @param   {Object}  options
  * @param   {String}  [options.id]      Uniquely identifies the hub on the network.
@@ -29,9 +30,21 @@ function Hub(options) {
   EventEmitter.call(this);
 
   this.id = options.id;
-
   this.routerEndpoint = options.router;
+  this.routerEndpointType = utils.endpointType(this.routerEndpoint);
   this.pubEndpoint = options.pub;
+  this.pubEndpointType = this.routerEndpointType;
+
+  if (!this.pubEndpoint) {
+    var pieces = this.routerEndpoint.split(':');
+
+    if (this.routerEndpointType === 'tcp') {
+      var port = utils.randRange(5000, 1 << 16);
+      this.pubEndpoint = [pieces[0], pieces[1], port].join(':');
+    } else {
+      this.pubEndpoint = [pieces[0], '/tmp/pub-' + this.id];
+    }
+  }
 
   // these are lazily initiated in `.bind()`
   this.routerSocket = null;
@@ -69,6 +82,12 @@ function Hub(options) {
    */
   this.ackOnly = {};
 
+  /**
+   * The hub's message factory. Used to create all messages sent.
+   *
+   * @property  messageFactory
+   * @type      {MessageFactory}
+   */
   this.messageFactory = new MessageFactory({
     id: utils.randomId,
     src: this.id
@@ -78,26 +97,30 @@ function Hub(options) {
   this._pendingAcks = {};
   this._pendingReplies = {};
 
-//  this._defaultSendRetryOptions = {
-//    retries: 10,
-//    factor: 1.87005,
-//    minTimeout: 100,
-//    maxTimeout: 1000,
-//    randomize: false
-//  };
+  this._pendingAcksByTime = [];
+  this._pendingAcksPruner = null;
 
-  this._defaultSendOperation = retry.operation({
-    retries: 10,
-    factor: 1.87005,
-    minTimeout: 100,
-    maxTimeout: 500,
-    randomize: false
-  });
+  this._ops = {
+    fast: Hub.op({
+      retries: 10,
+      minTimeout: 100,
+      maxTimeout: 1000
+    }),
+    medium: Hub.op({
+      retries: 10,
+      minTimeout: 1000,
+      maxTimeout: 10 * 1000
+    }),
+    slow: Hub.op({
+      retries: 10,
+      minTimeout: 30 * 1000,
+      maxTimeout: 3 * 60 * 1000
+    })
+  };
 
   this._connectedHubs = {};
   this._connectedRouterEndpoints = {};
-  this._connectedEndpointsSub = {};
-
+  this._connectedSubEndpoints = {};
 }
 inherits(Hub, EventEmitter);
 
@@ -121,65 +144,119 @@ Hub.prototype.bind = function () {
   // bind
   this.routerSocket.bindSync(this.routerEndpoint);
   this.pubSocket.bindSync(this.pubEndpoint);
+
+  // message handlers
+
+  var self = this;
+  function routeMessage(msg) {
+    var type = msg.body().type;
+
+    if (type === '_ack') {
+      self.onAck(msg);
+    } else if (type === '_handshake') {
+      self.onHandshake(msg);
+    } else if (type === '_reply') {
+      self.onReply(msg);
+    }
+  }
+
+  this.routerSocket.on('message', function (id, delimiter, data) {
+    var message = new Message(data);
+    routeMessage(message);
+  });
+
+  this.pubSocket.on('message', function () {
+    console.log('pub message:');
+    console.log(arguments);
+  });
+
+  this._startAckPruner();
+
+  return this;
+};
+
+Hub.prototype.close = function () {
+  if (this.routerSocket) {
+    this.routerSocket.close();
+  }
+
+  if (this.pubSocket) {
+    this.pubSocket.close();
+  }
+
+  if (this.subSocket) {
+    this.subSocket.close();
+  }
+
+  this._stopAckPruner();
 };
 
 /**
  * Connect the hub to another hub.
  *
- * @method  connect
+ * @method  handshake
  * @param   {Hub}       hub       The hub to connect to.
  * @param   {Function}  callback  Called after completing the handshake.
  */
-Hub.prototype.connect = function (hub, callback) {
-  var endpoint = hub.routerEndpoint;
-
-  if (this._isRouterConnectedTo(endpoint)) {
-    if (callback) {
-      callback();
+Hub.prototype.handshake = function (hub, callback) {
+  var self = this;
+  var message = this.messageFactory.build({
+    type: '_handshake',
+    data: {
+      id: this.id,
+      router: this.routerEndpoint,
+      pub: this.pubEndpoint
     }
-    return;
-  } else {
-    var self = this;
-    var message = this.messageFactory.build({
-      type: '_handshake',
-      dest: hub.id || 'unknown',
-      data: {
-        id: this.id,
-        router: this.routerEndpoint,
-        pub: this.pubEndpoint
-      }
-    });
+  });
 
-    // open a dealer socket to initiate the handshake
-    // we can't do this on the router since we need to know the id of the other peer
-    // maybe each hub should also have a req socket?
-    var tempSocket = zmq.socket('req');
-    tempSocket.on('message', function (message) {
-      message = new Message(message);
-      var data = message.body().data;
+  function handleReply(msg) {
+    var data = msg.body().data;
 
-      self._connectRouter(data.router);
-      self._connectSub(data.sub);
-      self._connectedHubs[data.id] = data;
-    });
+    hub.id = data.id;
+    hub.pubEndpoint = data.pub;
 
-    var attemptsLeft = self.connectAttempts;
+    self._connectRouter(hub.routerEndpoint);
+    self._connectSub(hub.pubEndpoint);
 
-    function retry(attempts) {
+    self._connectedHubs[hub.id] = hub;
 
-    }
-
-    setTimeout(function retry() {
-      attemptsLeft -= 1;
-
-      if (attemptsLeft) {
-        retry();
-      }
-    }, self.connectTimeout);
-
-    tempSocket.connect(endpoint);
-    tempSocket.send(message.rawBody());
+    callback();
   }
+
+  this._addAckHandler(message);
+  this._addReplyHandler(message, handleReply);
+
+  var socket = zmq.socket('req');
+  socket.connect(hub.routerEndpoint);
+  socket.send(message.rawBody());
+  socket.close();
+};
+
+/**
+ * Called when the hub receives a `_handshake` message.
+ *
+ * @method onHandshake
+ * @param  {Message}    msg
+ */
+Hub.prototype.onHandshake = function (msg) {
+  var data = msg.body().data;
+
+  var hub = new Hub({
+    id: data.id,
+    pub: data.pub,
+    router: data.router
+  });
+
+  this._connectRouter(hub.routerEndpoint);
+  this._connectSub(hub.pubEndpoint);
+
+  this._connectedHubs[hub.id] = hub;
+
+  this.reply(msg, this.messageFactory.build({
+    id: this.id,
+    router: this.router,
+    pub: this.pub
+  }));
 };
 
 /**
@@ -192,15 +269,44 @@ Hub.prototype.ack = function (msg) {
 
 };
 
+Hub.prototype.onAck = function (msg) {
+  var body = msg.body();
+
+  if (this._pendingAcks[body.id]) {
+    this._pendingAcks[body.id].fulfilled = true;
+    delete this._pendingAcks[body.id];
+  }
+};
+
 /**
- * Reply to a message. Attach a callback if you're expecting a reply.
+ * Reply to a message. Pass in a callback if you're expecting a reply.
  *
  * @method  reply
+ * @param   {Message}   initialMsg
  * @param   {Message}   msg
  * @param   {Function}  [callback]
  */
-Hub.prototype.reply = function (msg, callback) {
+Hub.prototype.reply = function (initialMsg, msg, callback) {
+  this._sendRouter([
+    Hub.routerSocketId(initialMsg.body().id),
+    msg.rawBody()
+  ]);
 
+  if (callback) {
+    this._addAckHandler(msg);
+    this._addReplyHandler(msg, callback);
+  }
+};
+
+Hub.prototype.onReply = function (msg) {
+  var body = msg.body();
+
+  if (this._pendingReplies[body.id]) {
+    this._pendingReplies[body.id].cb.forEach(function (cb) {
+      cb(msg);
+    });
+    delete this._pendingReplies[body.id];
+  }
 };
 
 /**
@@ -210,20 +316,42 @@ Hub.prototype.reply = function (msg, callback) {
  * @param   {String}          id
  * @param   {Message}         msg
  * @param   {Object|Function} [options]
- * @param   {Boolean}         [options.ack]           Whether this message should be `ack`ed by the receiving node. Overrides `ackAll` and `ackOnly`
- * @param   {Number}          [options.retries=3]     Maximum retries before giving up.
- * @param   {Number}          [options.timeout=5000]  Maximum time to wait for a reply before retrying.
- * @param   {Function}        [callback]              If you are expecting a reply, this will be called with `(err, reply)`.
+ * @param   {Boolean}         [options.ack]               Whether this message should be `ack`ed by the receiving node. Overrides `ackAll` and `ackOnly`
+ * @param   {String|Object}   [options.retry]             A string (`'fast'`, `'medium'`, `'slow'`) or a `RetryOperation` object. Overides `retries`, `minTimeout` and `maxTimeout`.
+ * @param   {Number}          [options.retries=3]         Maximum retries before giving up.
+ * @param   {Number}          [options.minTimeout=100]    Maximum time to wait for a reply before retrying.
+ * @param   {Number}          [options.maxTimeout=1000]   Maximum time to wait for a reply before retrying.
+ * @param   {Function}        [callback]                  If you are expecting a reply, this will be called with `(err, reply)`.
  */
 Hub.prototype.sendById = function (id, msg, options, callback) {
-  var options = options || this._defaultSendOptions,
-      ack = options.ack || this.ackOnly[msg.body().type] || this.ackAll,
-      retries = options.retries || this._defaultSendOptions.retries,
-      timeout = options.timeout || this._defaultSendOptions.timeout;
+  if (arguments.length === 3) {
+    callback = options;
+    options = {};
+  }
 
+  var ack = options.ack || this.ackOnly[msg.body().type] || this.ackAll,
+      retry = options.retry;
 
+  if (!retry && (options.retries || options.minTimeout || options.maxTimeout)) {
+    retry = Hub.op({
+      retries: options.retries || 10,
+      minTimeout: options.minTimeout || 100,
+      maxTimeout: options.maxTimeout || 1000
+    });
+  } else if (typeof retry === 'string') {
+    retry = this._ops[retry];
+  }
+
+//  retries = options.retries || 3,
+//  timeout = options.timeout || 100;
 };
 
+/**
+ * Connect the router socket to an endpoint.
+ *
+ * @param   {String} endpoint
+ * @private
+ */
 Hub.prototype._connectRouter = function (endpoint) {
   if (!this._connectedRouterEndpoints[endpoint]) {
     this.routerSocket.connect(endpoint);
@@ -240,6 +368,24 @@ Hub.prototype._disconnectRouter = function (endpoint) {
 
 Hub.prototype._isRouterConnectedTo = function (endpoint) {
   return this._connectedRouterEndpoints[endpoint] === 1;
+};
+
+Hub.prototype._connectSub = function (endpoint) {
+  if (!this._connectedSubEndpoints[endpoint]) {
+    this.subSocket.connect(endpoint);
+    this._connectedSubEndpoints[endpoint] = 1;
+  }
+};
+
+Hub.prototype._disconnectSub = function (endpoint) {
+  if (this._connectedSubEndpoints[endpoint]) {
+    this.subSocket.disconnect(endpoint);
+    delete this._connectedSubEndpoints[endpoint];
+  }
+};
+
+Hub.prototype._isSubConnectedTo = function (endpoint) {
+  return this._connectedSubEndpoints === 1;
 };
 
 /**
@@ -266,20 +412,49 @@ Hub.prototype._sendPub = function (buffer) {
   this.pubSocket.send(buffer);
 };
 
-Hub.prototype._onMessage = function () {
+Hub.prototype._addAckHandler = function (msg) {
+  var ack = {
+    expires: Date.now() + 100,
+    fulfilled: false
+  };
 
+  this._pendingAcks[msg.body().id] = ack;
+  this._pendingAcksByTime.push(ack);
 };
 
-Hub.prototype._onAck = function () {
+Hub.prototype._addReplyHandler = function (msg, callback) {
+  var body = msg.body();
 
+  if (!this._pendingReplies[body.id]) {
+    this._pendingReplies[body.id] = {
+      cb: []
+    };
+  }
+
+  this._pendingReplies[body.id].cb.push(callback);
 };
 
-Hub.prototype._onHandshake = function () {
+Hub.prototype._startAckPruner = function () {
+  var self = this;
+  this._pendingAcksPruner = setInterval(function () {
+    var now = Date.now();
+    var acks = self._pendingAcksByTime;
+    var ack;
 
+    while (acks.length && acks[0].expires < now) {
+      ack = self._pendingAcksByTime.shift();
+
+      if (!ack.fulfilled) {
+        console.log('ack not fulfilled... should retry');
+      }
+    }
+  }, 100);
 };
 
-Hub.prototype._onReply = function () {
-
+Hub.prototype._stopAckPruner = function () {
+  if (this._pendingAcksPruner) {
+    clearInterval(this._pendingAcksPruner);
+  }
 };
 
 /**
@@ -292,5 +467,28 @@ Hub.routerSocketId = function (id) {
   var socketId = 'g' + id;
   return new Buffer(socketId);
 };
+
+/**
+ * @method  op
+ * @param   {Object}          options   Same options as `retry.operation(options)`
+ * @returns {RetryOperation}
+ */
+Hub.op = function (options) {
+  var opKey = Object.keys(options).join('|');
+  if (!Hub._opCache[opKey]) {
+    Hub._opCache[opKey] = retry.operation(options);
+  }
+  return Hub._opCache[opKey];
+};
+
+/**
+ * Caches operations returned by `Hub.op()`.
+ *
+ * @property  _opCache
+ * @type      {Object}
+ * @private
+ * @static
+ */
+Hub._opCache = {};
 
 module.exports = Hub;
