@@ -94,6 +94,13 @@ function Hub(options) {
     src: this.id
   });
 
+  /**
+   * The hub's state machine.
+   *
+   * @property  _machine
+   * @type      {Stately}
+   * @private
+   */
   this._machine = new Stately({
     CLOSED: {
       bind: 'BOUND'
@@ -241,7 +248,7 @@ Hub.prototype.close = function (callback) {
     if (callback) {
       callback();
     }
-  }, 10);
+  }, 20);
 };
 
 /**
@@ -262,7 +269,7 @@ Hub.prototype.handshake = function (hub, callback) {
     }
   });
 
-  function handleReply(msg) {
+  function handleReply(err, msg) {
     var data = msg.body().data;
 
     hub.id = data.id;
@@ -373,7 +380,7 @@ Hub.prototype.onReply = function (msg) {
 
   if (this._pendingReplies[body.parent]) {
     this._pendingReplies[body.parent].cb.forEach(function (cb) {
-      cb(msg);
+      cb(null, msg);
     });
     delete this._pendingReplies[body.parent];
   }
@@ -560,6 +567,7 @@ Hub.routerSocketId = function (id) {
  * @method  op
  * @param   {Object}          options   Same options as `retry.operation(options)`
  * @returns {RetryOperation}
+ * @static
  */
 Hub.op = function (options) {
   var opKey = Object.keys(options).join('|');

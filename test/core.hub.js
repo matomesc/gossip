@@ -3,8 +3,7 @@ var sinon = require('sinon');
 var zmq = require('zmq');
 var Hub = require('../core/hub');
 
-describe('core.Hub', function () {
-
+describe.only('core.Hub', function () {
   var hub;
 
   beforeEach(function (done) {
@@ -35,7 +34,6 @@ describe('core.Hub', function () {
   });
 
   describe('hub.bind()', function () {
-
     var zmqStub;
 
     beforeEach(function () {
@@ -112,7 +110,6 @@ describe('core.Hub', function () {
   });
 
   describe('hub.handshake(otherHub)', function () {
-
     var otherHub;
 
     beforeEach(function (done) {
@@ -136,4 +133,53 @@ describe('core.Hub', function () {
     });
   });
 
+  describe('hub.sendById(id, msg)', function () {
+    var otherHub;
+
+    beforeEach(function (done) {
+      otherHub = new Hub({
+        id: 'b',
+        router: 'tcp://127.0.0.1:6000'
+      }).bind();
+
+      hub.bind();
+      hub.handshake(otherHub, done);
+    });
+
+    afterEach(function (done) {
+      otherHub.close(done);
+    });
+
+    it('should send a message to another hub', function (done) {
+      var msg = hub.messageFactory.build({
+        data: {
+          beep: 'bop'
+        },
+        type: 'beep'
+      });
+
+      var beepSpy = sinon.spy(function (msg) {
+        assert(msg.body().data.beep === 'bop');
+        otherHub.reply(msg, otherHub.messageFactory.build({
+          data: {
+            oh: 'ok'
+          },
+          type: '_reply',
+          parent: msg.body().id
+        }));
+      });
+
+      otherHub.on('beep', beepSpy);
+
+      setTimeout(function () {
+        assert(beepSpy.calledOnce);
+      }, 10);
+
+      hub.sendById('b', msg, function (err, reply) {
+        assert.ifError(err);
+        assert(reply.body().data.oh === 'ok');
+        done();
+      });
+    });
+  });
 });
