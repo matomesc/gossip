@@ -103,7 +103,6 @@ function Hub(options) {
     }
   }, 'CLOSED');
 
-  this._pendingHandshakes = {};
   this._pendingAcks = {};
   this._pendingReplies = {};
 
@@ -181,6 +180,8 @@ Hub.prototype.bind = function () {
     } else if (type === '_reply') {
       self.onReply(msg);
     }
+
+    self.emit(type, msg);
   }
 
   // set message handlers
@@ -531,6 +532,7 @@ Hub.prototype._startAckPruner = function () {
       ack = self._pendingAcksByTime.shift();
 
       if (!ack.fulfilled) {
+        // TODO: implement retry logic here
         console.log('%s: ack not fulfilled... should retry', self.id);
       }
     }
