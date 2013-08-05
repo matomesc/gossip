@@ -29,7 +29,7 @@ Message.prototype.body = function () {
  *
  * @returns {Buffer}
  */
-Message.prototype.raw = function () {
+Message.prototype.rawBody = function () {
   if (!Buffer.isBuffer(this._raw)) {
     this._raw = new Buffer(JSON.stringify(this._obj));
   }
