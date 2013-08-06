@@ -1,5 +1,8 @@
+var uuid = require('node-uuid');
+
 /**
  * @class   utils
+ * @module  core
  */
 
 /**
@@ -77,3 +80,35 @@ exports.getPath = function (object, path) {
 
   return current;
 };
+
+/**
+ * Get uuid v4.
+ *
+ * @method  randomId
+ * @returns {String}
+ * @static
+ */
+exports.randomId = function () {
+  return uuid.v4();
+};
+
+/**
+ * @method  endpointType
+ * @param   {String} endpoint
+ * @returns {String} `tcp`, `ipc` or `inproc`
+ */
+exports.endpointType = function (endpoint) {
+  if (endpoint.indexOf('tcp') === 0) {
+    return 'tcp';
+  } else if (endpoint.indexOf('ipc') === 0) {
+    return 'ipc';
+  } else if (endpoint.indexOf('inproc') === 0) {
+    return 'inproc';
+  }
+};
+
+/**
+ * @property EMPTY_BUFFER
+ * @type     {Buffer}
+ */
+exports.EMPTY_BUFFER = new Buffer('');
