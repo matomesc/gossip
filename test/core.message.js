@@ -2,7 +2,7 @@ var assert = require('assert');
 var sinon = require('sinon');
 var Message = require('../core/message');
 
-describe.only('core.Message', function () {
+describe('core.Message', function () {
   describe('new Message()', function () {
     it('should create an empty message', function () {
       var m = new Message();

@@ -1,5 +1,9 @@
 /**
- * @param {Object|Buffer} [body=null]
+ * Create a new message from an object or buffer.
+ *
+ * @class   Message
+ * @module  core
+ * @param   {Object|Buffer} [body=null]
  * @constructor
  */
 function Message(body) {

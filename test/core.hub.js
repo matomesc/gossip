@@ -15,7 +15,9 @@ describe.only('core.Hub', function () {
   });
 
   afterEach(function (done) {
-    hub.close(done);
+    hub.close(function () {
+      setTimeout(done, 50);
+    });
   });
 
   describe('new Hub() with id and router endpoint', function () {
@@ -159,14 +161,8 @@ describe.only('core.Hub', function () {
       });
 
       var beepSpy = sinon.spy(function (msg) {
-        assert(msg.body().data.beep === 'bop');
-        otherHub.reply(msg, otherHub.messageFactory.build({
-          data: {
-            oh: 'ok'
-          },
-          type: '_reply',
-          parent: msg.body().id
-        }));
+        assert(msg.get('data.beep') === 'bop');
+        otherHub.reply(msg, { oh: 'ok' });
       });
 
       otherHub.on('beep', beepSpy);
@@ -177,9 +173,40 @@ describe.only('core.Hub', function () {
 
       hub.sendById('b', msg, function (err, reply) {
         assert.ifError(err);
-        assert(reply.body().data.oh === 'ok');
+        assert(reply.get('data.oh') === 'ok');
         done();
       });
     });
   });
+
+  describe('hub.reply()', function () {
+    var otherHub =
+
+    beforeEach(function (done) {
+      hub.bind();
+      otherHub = new Hub({
+        id: 'b',
+        router: 'tcp://127.0.0.1:6000'
+      }).bind();
+      hub.handshake(otherHub, done);
+    });
+
+    afterEach(function (done) {
+      otherHub.close(done);
+    });
+
+    describe('with (msg, data)', function () {
+      it('should send a reply with data', function (done) {
+
+//        otherHub.on('beep', function (msg) {
+//          assert()
+//        });
+//
+//        hub.sendById(otherHub.id, {);
+
+        done();
+      });
+    });
+  });
+
 });
