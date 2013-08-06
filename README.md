@@ -84,4 +84,4 @@ setInterval(function () {
 
 ## API Docs
 
-[See here.](http://github.com)
+[See here.](http://htmlpreview.github.io/?https://github.com/matomesc/gossip/blob/master/docs/yui/index.html)
