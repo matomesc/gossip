@@ -30,7 +30,7 @@ var utils = require('./utils');
 function Hub(options) {
   EventEmitter.call(this);
 
-  this.id = options.id;
+  this.id = options.id || 'hub-' + utils.randomId();
   this.routerEndpoint = options.router;
   this.routerEndpointType = utils.endpointType(this.routerEndpoint);
   this.pubEndpoint = options.pub;
