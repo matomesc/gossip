@@ -1,6 +1,6 @@
 # Gossip
 
-Distributed messaging built with ZeroMQ.
+Simple distributed messaging built with ZeroMQ.
 
 [![Build Status](https://travis-ci.org/matomesc/gossip.png)](https://travis-ci.org/matomesc/gossip)
 
