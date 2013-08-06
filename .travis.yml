@@ -2,5 +2,5 @@ language: node_js
 node_js:
   - "0.11"
   - "0.10"
-services:
-  - zeromq
+before_install:
+  - sudo apt-get install libzmq3-dev
