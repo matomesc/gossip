@@ -3,37 +3,82 @@
  * @constructor
  */
 function Message(body) {
+  this.data = undefined;
+  this.raw = null;
+
   if (Buffer.isBuffer(body)) {
-    this._obj = undefined;
-    this._raw = body;
-  } else {
-    this._obj = (body === undefined ? null : body);
-    this._raw = null;
+    this.raw = body;
+  } else if (typeof body === 'object') {
+    this.data = body;
   }
 }
 
 /**
- * Get the message body as an object.
- *
- * @returns {Object}
+ * @method  set
+ * @param   path
+ * @param   value
  */
-Message.prototype.body = function () {
-  if (this._obj === undefined && Buffer.isBuffer(this._raw)) {
-    this._obj = JSON.parse(this._raw.toString('utf8'));
+Message.prototype.set = function (path, value) {
+  var pieces = path.split('.');
+  var current = this.data;
+
+  if (!this.data) {
+    this.data = {};
   }
-  return this._obj;
+
+  for (var i = 0, len = pieces.length; i < len; i++) {
+    if (i === len - 1) {
+      current[pieces[i]] = value;
+    } else {
+      if (!current[pieces[i]]) {
+        current[pieces[i]] = {};
+      }
+      current = current[pieces[i]];
+    }
+  }
 };
 
 /**
- * Get the message body as a buffer.
- *
+ * @method  get
+ * @param   [path]
+ * @returns {*}
+ */
+Message.prototype.get = function (path) {
+  if (!path) {
+    return this.data;
+  }
+
+  var pieces = path.split('.');
+  var current = this.data;
+
+  for (var i = 0, len = pieces.length; i < len; i++) {
+    current = (current === undefined || current === null) ? undefined : current[pieces[i]];
+    if (current === undefined) {
+      break;
+    }
+  }
+
+  return current;
+};
+
+/**
+ * @method  serialize
  * @returns {Buffer}
  */
-Message.prototype.rawBody = function () {
-  if (!Buffer.isBuffer(this._raw)) {
-    this._raw = new Buffer(JSON.stringify(this._obj));
+Message.prototype.serialize = function () {
+  this.raw = new Buffer(JSON.stringify(this.data) || '');
+  return this.raw;
+};
+
+/**
+ * @method  deserialize
+ * @returns {Message}
+ */
+Message.prototype.deserialize = function () {
+  if (this.raw) {
+    this.data = JSON.parse(this.raw);
   }
-  return this._raw;
+  return this;
 };
 
 module.exports = Message;

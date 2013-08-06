@@ -2,12 +2,12 @@ var assert = require('assert');
 var sinon = require('sinon');
 var Message = require('../core/message');
 
-describe('core.Message', function () {
+describe.only('core.Message', function () {
   describe('new Message()', function () {
-    it('should create a new message with null body', function () {
+    it('should create an empty message', function () {
       var m = new Message();
-      assert(m._obj === null);
-      assert(m._obj === null);
+      assert(!m.data);
+      assert(!m.raw);
     });
   });
 
@@ -15,8 +15,8 @@ describe('core.Message', function () {
     it('should create a new message with object body', function () {
       var body = { human: false };
       var m = new Message(body);
-      assert.deepEqual(m._obj, body);
-      assert(m._body === undefined);
+      assert.deepEqual(m.data, body);
+      assert(m.raw === null);
     });
   });
 
@@ -24,39 +24,61 @@ describe('core.Message', function () {
     it('should create a new message with buffer body', function () {
       var body = new Buffer('{ "human": false }');
       var m = new Message(body);
-      assert(m._raw === body);
-      assert(m._obj === undefined);
+      assert(m.raw === body);
+      assert(m.data === undefined);
     });
   });
 
-  describe('message.body()', function () {
-    it('should be lazy and only parse once', function () {
+  describe('message.deserialize()', function () {
+    it('should parse the raw buffer into an object', function () {
       var msg = { human: false };
       var body = new Buffer(JSON.stringify(msg));
       var m = new Message(body);
-      var spy = sinon.spy(JSON, 'parse');
 
-      assert(m._obj === undefined);
-      assert.deepEqual(m.body(), msg);
-      assert.deepEqual(m._obj, msg);
-      assert.deepEqual(m.body(), msg);
-      assert(spy.calledOnce);
+      m.deserialize();
+
+      assert.deepEqual(m.get(), msg);
     });
   });
 
-  describe('message.raw()', function () {
-    it('should be lazy and only parse once', function () {
+  describe('message.serialize()', function () {
+    it('should stringify the object into a buffer', function () {
       var body = { human: false };
       var jsonBody = JSON.stringify(body);
       var m = new Message(body);
-      var spy = sinon.spy(JSON, 'stringify');
 
-      assert(m._obj === body);
-      assert(m._raw === null);
-      assert(m.raw().toString('utf8') === jsonBody);
-      assert(m._raw.toString('utf8') === jsonBody);
-      assert(m.raw().toString('utf8') === jsonBody);
-      assert(spy.calledOnce);
+      assert(m.serialize().toString('utf8') === jsonBody);
+    });
+  });
+
+  describe('message.get(path)', function () {
+    it('should return the value at path', function () {
+      var body = {
+        a: 10,
+        b: {
+          c: 15
+        }
+      };
+      var message = new Message(body);
+
+      assert.deepEqual(message.get(), body);
+      assert(message.get('a') === 10);
+      assert(message.get('b.c') === 15);
+      assert(message.get('a.b.c') === undefined);
+    });
+  });
+
+  describe('message.set(path, value)', function () {
+    it('should set the value at path', function () {
+      var m = new Message({
+        a: 10
+      });
+      m.set('a', 20);
+      m.set('d', 10);
+      m.set('b.c', 'asdf');
+      assert(m.get('a') === 20);
+      assert(m.get('d') === 10);
+      assert(m.get('b.c') === 'asdf');
     });
   });
 });
