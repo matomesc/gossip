@@ -1,0 +1,4 @@
+gossip
+======
+
+Simple distributed messaging
