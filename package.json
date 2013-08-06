@@ -1,6 +1,6 @@
 {
-  "name": "centaur",
-  "version": "0.0.0",
+  "name": "gossip",
+  "version": "0.0.1",
   "description": "Distributed messaging framework",
   "main": "index.js",
   "scripts": {
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:matomesc/centaur.git"
+    "url": "git@github.com:matomesc/gossip.git"
   },
   "keywords": [
     "distributed",
