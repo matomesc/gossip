@@ -358,15 +358,31 @@ Hub.prototype.onAck = function (msg) {
  * Reply to a message. Pass in a callback if you're expecting a reply.
  *
  * @method  reply
- * @param   {Message}   initialMsg
- * @param   {Message}   msg
+ * @param   {Message}   msg     The message you are replying to.
+ * @param   {Object}    [data]  Optional data to send
  * @param   {Function}  [callback]
  */
-Hub.prototype.reply = function (initialMsg, msg, callback) {
+Hub.prototype.reply = function (msg, data, callback) {
+  var src = msg.body().src;
+  var reply = {
+    parent: msg.body().id
+  };
+
+  if (arguments.length === 2 && typeof data === 'function') {
+    callback = data;
+    data = undefined;
+  }
+
+  if (data !== undefined) {
+    reply.data = data;
+  }
+
+  var replyMsg = this.messageFactory.build(reply);
+
   this._sendRouter([
-    Hub.routerSocketId(initialMsg.body().src),
-    new Buffer(''),
-    msg.rawBody()
+    Hub.routerSocketId(src),
+    utils.EMPTY_BUFFER,
+    replyMsg().rawBody()
   ]);
 
   if (callback) {
