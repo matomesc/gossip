@@ -1,0 +1,13 @@
+{
+  "name": "Gossip",
+  "description": "Distributed messaging library built with ZeroMQ",
+  "version": "0.0.1",
+  "url": "https://github.com/matomesc/gossip",
+  "options": {
+    "linkNatives": "true",
+    "attributesEmit": "false",
+    "selleck": "false",
+    "paths": "./core",
+    "outdir": "./docs/yui"
+  }
+}
