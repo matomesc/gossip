@@ -428,6 +428,21 @@ Hub.prototype.sendById = function (id, message, callback) {
 };
 
 /**
+ * Send a message to all connected hubs.
+ *
+ * @param {Message}   message
+ * @param {Function}  callback
+ */
+Hub.prototype.sendAll = function (message, callback) {
+  this._sendPub(message.serialize());
+
+  if (callback) {
+    this._addAckHandler(message);
+    this._addReplyHandler(message, callback);
+  }
+};
+
+/**
  * Connect the router socket to an endpoint.
  *
  * @param   {String} endpoint
