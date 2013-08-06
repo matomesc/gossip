@@ -3,7 +3,7 @@ var sinon = require('sinon');
 var Node = require('../').Node;
 var randRange = require('../core/utils').randRange;
 
-describe.only('core.Node', function () {
+describe('core.Node', function () {
   describe('new Node()', function () {
     it('should create a new default node instance', function (done) {
       var node = new Node();
