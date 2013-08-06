@@ -73,10 +73,10 @@ describe.only('core.Hub', function () {
       done();
     });
 
-    it('should attach handlers for messages on the pub and router sockets', function (done) {
+    it('should attach handlers for messages on the sub and router sockets', function (done) {
       hub.bind();
       assert(hub.routerSocket.on.calledOnce);
-      assert(hub.pubSocket.on.calledOnce);
+      assert(hub.subSocket.on.calledOnce);
       done();
     });
   });
