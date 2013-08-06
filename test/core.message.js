@@ -66,6 +66,14 @@ describe.only('core.Message', function () {
       assert(message.get('b.c') === 15);
       assert(message.get('a.b.c') === undefined);
     });
+
+    it('should deserialize the object', function () {
+      var body = { stuff: 'apples' };
+      var buffer = new Buffer(JSON.stringify(body));
+      var m = new Message(buffer);
+
+      assert(m.get('stuff') === 'apples');
+    });
   });
 
   describe('message.set(path, value)', function () {

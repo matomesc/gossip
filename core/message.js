@@ -44,6 +44,10 @@ Message.prototype.set = function (path, value) {
  * @returns {*}
  */
 Message.prototype.get = function (path) {
+  if (this.raw && !this.data) {
+    this.deserialize();
+  }
+
   if (!path) {
     return this.data;
   }
