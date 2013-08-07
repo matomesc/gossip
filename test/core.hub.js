@@ -236,7 +236,21 @@ describe.only('core.Hub', function () {
     });
 
     it('should send a message to all the nodes in the cluster', function (done) {
-      done();
+      var hubBSpy = sinon.spy();
+      var hubCSpy = sinon.spy();
+
+      hubB.on('beep', hubBSpy);
+      hubC.on('beep', hubCSpy);
+
+      hub.sendAll(hub.messageFactory.build({
+        type: 'beep'
+      }));
+
+      setTimeout(function () {
+        assert(hubBSpy.calledOnce);
+        assert(hubBSpy.calledOnce);
+        done();
+      }, 10);
     });
   });
 

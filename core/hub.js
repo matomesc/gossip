@@ -19,6 +19,12 @@ var utils = require('./utils');
  *
  * It three ZMQ sockets: router, pub and sub.
  *
+ * TODO:
+ *
+ * - implement transactions
+ * - message stream when expecting multiple replies
+ *
+ *
  * @class   Hub
  * @extends EventEmitter
  * @module  core
@@ -358,6 +364,12 @@ Hub.prototype.ack = function (msg) {
   }));
 };
 
+/**
+ * Called when an `_ack` message is received. This fulfills the pending acknowledgment.
+ *
+ * @method  onAck
+ * @param   {Message} msg
+ */
 Hub.prototype.onAck = function (msg) {
   if (this._pendingAcks[msg.id]) {
     this._pendingAcks[msg.id].fulfilled = true;
@@ -403,6 +415,14 @@ Hub.prototype.reply = function (msg, data, callback) {
   }
 };
 
+/**
+ * Called when a `_reply` message is received.
+ *
+ * All message handlers are invoked immediately.
+ *
+ * @method  onReply
+ * @param   {Message} msg
+ */
 Hub.prototype.onReply = function (msg) {
   var parent = msg.get('parent');
 
@@ -439,8 +459,9 @@ Hub.prototype.sendById = function (id, message, callback) {
 /**
  * Send a message to all connected hubs.
  *
- * @param {Message}   message
- * @param {Function}  callback
+ * @method  sendAll
+ * @param   {Message}   message
+ * @param   {Function}  callback
  */
 Hub.prototype.sendAll = function (message, callback) {
   if (callback) {
@@ -464,6 +485,13 @@ Hub.prototype._connectRouter = function (endpoint) {
   }
 };
 
+/**
+ * Disconnects the router socket.
+ *
+ * @method  _disconnectRouter
+ * @param   {string} endpoint
+ * @private
+ */
 Hub.prototype._disconnectRouter = function (endpoint) {
   if (this._connectedRouterEndpoints[endpoint]) {
     this.routerSocket.disconnect(endpoint);
@@ -528,6 +556,21 @@ Hub.prototype._sendPub = function (buffer) {
   this.pubSocket.send(buffer);
 };
 
+/**
+ * Attach an `_ack` handler. If we don't receive an `_ack`, we should
+ * attempt to retry.
+ *
+ * If there is only one node then we will retry again in a bit.
+ * Otherwise if there are more hubs connected then we ask another hub.
+ *
+ * TODO:
+ *
+ * - retry logic
+ *
+ * @method  _addAckHandler
+ * @param   msg
+ * @private
+ */
 Hub.prototype._addAckHandler = function (msg) {
   var ack = {
     expires: Date.now() + 100,
