@@ -73,6 +73,19 @@ describe.only('core.Hub', function () {
       done();
     });
 
+    it('should subscribe the sub socket to all incoming messages', function (done) {
+      hub.bind();
+
+      assert(hub.subSocket.setsockopt.calledWith(
+        zmq.ZMQ_SUBSCRIBE,
+        sinon.match(function (buffer) {
+          return buffer.toString() === '';
+        }, "emptyBuffer")
+      ));
+
+      done();
+    });
+
     it('should attach handlers for messages on the sub and router sockets', function (done) {
       hub.bind();
       assert(hub.routerSocket.on.calledOnce);

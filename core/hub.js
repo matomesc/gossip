@@ -144,7 +144,9 @@ function Hub(options) {
 inherits(Hub, EventEmitter);
 
 /**
- * Bind the router and pub sockets. The hub can now send/receive messages.
+ * Bind the router and pub sockets and subscribe to all messages.
+ *
+ * The hub can now send/receive messages.
  *
  * @method  bind
  */
@@ -166,9 +168,6 @@ Hub.prototype.bind = function () {
   this.routerSocket.setsockopt(zmq.options.identity, this.routerSocketId);
   this.routerSocket.setsockopt(zmq.ZMQ_LINGER, 0);
 
-  // throw errors if messages sent can't be routed
-//  this.routerSocket.setsockopt(zmq.ZMQ_ROUTER_MANDATORY, 1);
-
   // bind sockets
   try {
     this.routerSocket.bindSync(this.routerEndpoint);
@@ -183,6 +182,9 @@ Hub.prototype.bind = function () {
     console.log('failed to bind pub: attempted', this.routerEndpoint);
     throw e;
   }
+
+  // subscribe sub socket to everything
+  this.subSocket.setsockopt(zmq.ZMQ_SUBSCRIBE, utils.EMPTY_BUFFER);
 
   var self = this;
   function routeMessage(msg) {
@@ -434,12 +436,12 @@ Hub.prototype.sendById = function (id, message, callback) {
  * @param {Function}  callback
  */
 Hub.prototype.sendAll = function (message, callback) {
-  this._sendPub(message.serialize());
-
   if (callback) {
     this._addAckHandler(message);
     this._addReplyHandler(message, callback);
   }
+
+  this._sendPub(message.serialize());
 };
 
 /**
