@@ -140,6 +140,18 @@ describe.only('core.Hub', function () {
       otherHub.close(done);
     });
 
+    it('should not let a hub handshake another hub twice', function (done) {
+      hub.handshake(otherHub, function (err) {
+        // shouldn't error here
+        assert.ifError(err);
+        hub.handshake(otherHub, function (err) {
+          // this should error
+          assert(err instanceof Error);
+          done();
+        });
+      });
+    });
+
     it('should connect the hub to the other hub', function (done) {
       hub.handshake(otherHub, function (err) {
         assert.ifError(err);
@@ -189,6 +201,42 @@ describe.only('core.Hub', function () {
         assert(reply.get('data.oh') === 'ok');
         done();
       });
+    });
+  });
+
+  describe('hub.sendAll()', function () {
+
+    var hubB = new Hub({
+      id: 'b',
+      router: 'tcp://127.0.0.1:6000'
+    });
+
+    var hubC = new Hub({
+      id: 'c',
+      router: 'tcp://127.0.0.1:7000'
+    });
+
+    beforeEach(function (done) {
+      Hub.bindAll(hub, hubB, hubC);
+
+      // connect the hubs
+      hub.handshake(hubB, function (err) {
+        assert.ifError(err);
+        hub.handshake(hubC, function (err) {
+          assert.ifError(err);
+          done();
+        });
+      });
+    });
+
+    afterEach(function (done) {
+      hubB.close();
+      hubC.close();
+      done();
+    });
+
+    it('should send a message to all the nodes in the cluster', function (done) {
+      done();
     });
   });
 

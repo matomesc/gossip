@@ -271,6 +271,13 @@ Hub.prototype.close = function (callback) {
  */
 Hub.prototype.handshake = function (hub, callback) {
   var self = this;
+
+  if (this._connectedHubs[hub.id]) {
+    return process.nextTick(function () {
+      callback(new Error('you dont handshake twice bro.'));
+    });
+  }
+
   var message = this.messageFactory.build({
     type: '_handshake',
     data: {
@@ -590,6 +597,19 @@ Hub.op = function (options) {
     Hub._opCache[opKey] = retry.operation(options);
   }
   return Hub._opCache[opKey];
+};
+
+/**
+ * Bind hubs.
+ *
+ * @method  bindAll
+ * @param   {Hub} hub*
+ * @static
+ */
+Hub.bindAll = function (hub) {
+  [].slice.call(arguments).forEach(function (hub) {
+    hub.bind();
+  });
 };
 
 /**
