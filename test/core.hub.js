@@ -272,14 +272,26 @@ describe.only('core.Hub', function () {
 
     describe('with (msg, data)', function () {
       it('should send a reply with data', function (done) {
+        var spy = sinon.spy();
 
-//        otherHub.on('beep', function (msg) {
-//          assert()
-//        });
-//
-//        hub.sendById(otherHub.id, {);
+        // listen for message and reply
+        otherHub.on('beep', function (msg) {
+          otherHub.reply(msg, [5]);
+        });
 
-        done();
+        // build and send the message
+        var msg = hub.messageFactory.build({
+          type: 'beep'
+        });
+        hub.sendById(otherHub.id, msg, spy);
+
+        setTimeout(function () {
+          assert(spy.calledOnce);
+          assert(spy.calledWithMatch(sinon.match.falsy, sinon.match(function (msg) {
+            return msg.get('data.0') === 5;
+          })));
+          done();
+        }, 5);
       });
     });
   });
