@@ -85,3 +85,13 @@ setInterval(function () {
 ## API Docs
 
 [See here.](http://matomesc.github.io/gossip/docs/yui/)
+
+## TODO
+
+- better docs
+- plugin system
+- durable sends plugin?
+- node abstraction
+- cluster cli
+- cluster cli config file
+- cluster visualization / management
