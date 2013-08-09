@@ -6,6 +6,7 @@ var Stately = require('stately.js');
 var Message = require('./message.js');
 var MessageFactory = require('./message_factory');
 var utils = require('./utils');
+var MessageStream = require('./message_stream.js');
 
 /**
  * The `Hub` abstracts low level ZeroMQ communication.
@@ -425,11 +426,33 @@ Hub.prototype.reply = function (msg, data, callback) {
  */
 Hub.prototype.onReply = function (msg) {
   var parent = msg.get('parent');
+  var reply = this._pendingReplies[parent];
 
-  if (this._pendingReplies[parent]) {
-    this._pendingReplies[parent].cb.forEach(function (cb) {
-      cb(null, msg);
-    });
+  if (!reply) {
+    return;
+  }
+
+  if (reply.received >= reply.expected) {
+    // shouldn't get here
+    console.log('onReply called received reply when none expected');
+    delete this._pendingReplies[parent];
+    return;
+  }
+
+  reply.handlers.forEach(function (handler) {
+    if (typeof handler === 'function') {
+      // function handler
+      handler(null, msg);
+    } else {
+      // stream handler - emit on stream
+      handler.emitMessage(msg);
+    }
+  });
+
+  reply.received += 1;
+
+  if (reply.received === reply.expected) {
+    // delete pending reply object - none of the handlers will ever get called again
     delete this._pendingReplies[parent];
   }
 };
@@ -581,16 +604,32 @@ Hub.prototype._addAckHandler = function (msg) {
   this._pendingAcksByTime.push(ack);
 };
 
-Hub.prototype._addReplyHandler = function (msg, callback) {
+/**
+ * Register a callback that will be invoked when a reply arrives for a given message.
+ *
+ * @method  _addReplyHandler
+ * @param   {Message}   msg                 The message that you are expecting a reply for
+ * @param   {function}  handler             Called with `(err, message)` or `(err, stream)`.
+ * @param   {Object}    [options]
+ * @param   {number}    [options.replies=5]  How many messages you are expecting (used by `.sendAll()`)
+ * @private
+ */
+Hub.prototype._addReplyHandler = function (msg, handler, options) {
   var id = msg.get('id');
+  var reply = this._pendingReplies[id];
 
-  if (!this._pendingReplies[id]) {
-    this._pendingReplies[id] = {
-      cb: []
+  if (!reply) {
+    // create a reply handler
+    // TODO: abstract this into a message promise
+    reply = {
+      handlers: [],
+      expected: options && options.replies || 1,
+      received: 0
     };
+    this._pendingReplies[id] = reply;
   }
 
-  this._pendingReplies[id].cb.push(callback);
+  reply.handlers.push(handler);
 };
 
 Hub.prototype._startAckPruner = function () {
