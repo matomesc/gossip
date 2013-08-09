@@ -3,7 +3,7 @@ var sinon = require('sinon');
 var zmq = require('zmq');
 var Hub = require('../core/hub');
 
-describe.only('core.Hub', function () {
+describe('core.Hub', function () {
   var hub;
 
   beforeEach(function (done) {
