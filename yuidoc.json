@@ -8,6 +8,9 @@
     "attributesEmit": "false",
     "selleck": "false",
     "paths": "./core",
-    "outdir": "./docs/yui"
+    "outdir": "./docs/yui",
+    "markdown": {
+      "gfm": true
+    }
   }
 }
