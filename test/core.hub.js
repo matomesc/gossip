@@ -16,7 +16,7 @@ describe('core.Hub', function () {
 
   afterEach(function (done) {
     hub.close(function () {
-      setTimeout(done, 50);
+      setTimeout(done, 10);
     });
   });
 
@@ -235,22 +235,32 @@ describe('core.Hub', function () {
       done();
     });
 
+    describe('called without a callback', function () {
+      it('should send the message to all the hubs without expecting a reply', function (done) {
+        var hubBSpy = sinon.spy();
+        var hubCSpy = sinon.spy();
+
+        hubB.on('beep', hubBSpy);
+        hubC.on('beep', hubCSpy);
+
+        var msg = hub.createMessage({
+          type: 'beep'
+        });
+
+        hub.sendAll(msg);
+
+        assert(!hub._pendingReplies[msg.get('id')]);
+
+        setTimeout(function () {
+          assert(hubBSpy.calledOnce);
+          assert(hubBSpy.calledOnce);
+          done();
+        }, 10);
+      });
+    });
+
     it('should send a message to all the nodes in the cluster', function (done) {
-      var hubBSpy = sinon.spy();
-      var hubCSpy = sinon.spy();
-
-      hubB.on('beep', hubBSpy);
-      hubC.on('beep', hubCSpy);
-
-      hub.sendAll(hub.messageFactory.build({
-        type: 'beep'
-      }));
-
-      setTimeout(function () {
-        assert(hubBSpy.calledOnce);
-        assert(hubBSpy.calledOnce);
-        done();
-      }, 10);
+      done();
     });
   });
 

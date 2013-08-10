@@ -2,6 +2,7 @@ var Message = require('./message');
 
 /**
  * Message factory.
+ * @class MessageFactory
  * @param {Object}  [options]
  * @param {Object}  [options.defaults]
  * @constructor
@@ -15,6 +16,7 @@ var _ownProp = Object.hasOwnProperty;
 /**
  * Build a message. Defaults are first applied, then `body`.
  *
+ * @method  build
  * @param   {Object}  body  message body
  * @returns {Message}
  */

@@ -179,14 +179,14 @@ Hub.prototype.bind = function () {
   try {
     this.routerSocket.bindSync(this.routerEndpoint);
   } catch (e) {
-    console.log('failed to bind router: attempted', this.routerEndpoint);
+    console.log('failed to bind router: attempted endpoint', this.routerEndpoint);
     throw e;
   }
 
   try {
     this.pubSocket.bindSync(this.pubEndpoint);
   } catch (e) {
-    console.log('failed to bind pub: attempted', this.routerEndpoint);
+    console.log('failed to bind pub: attempted endpoint', this.routerEndpoint);
     throw e;
   }
 
@@ -235,6 +235,21 @@ Hub.prototype.bind = function () {
   return this;
 };
 
+/**
+ * Close the hub. No more message will be received, but
+ * handlers might still be invoked with queued messages.
+ *
+ * **Note: socket.close() is async**
+ *
+ * This means that depending on the ZMQ_LINGER option, the socket
+ * can remain open for a while if there are queued messages.
+ *
+ * This implies that if you bind/close/bind too fast,
+ * the second bind might fail. You shouldn't typically run into this.
+ *
+ * @method close
+ * @param {function} callback
+ */
 Hub.prototype.close = function (callback) {
   this._machine.close();
 
@@ -244,7 +259,6 @@ Hub.prototype.close = function (callback) {
 
   var self = this;
 
-  // note: socket.close() is async
   if (self.routerSocket) {
     self.routerSocket.close();
     self.routerSocket = null;
@@ -262,6 +276,7 @@ Hub.prototype.close = function (callback) {
 
   self._stopAckPruner();
 
+  // TODO: somehow notify when we're actually done handling queued messages
   process.nextTick(function () {
     if (callback) {
       callback();
@@ -493,6 +508,10 @@ Hub.prototype.sendAll = function (message, callback) {
   }
 
   this._sendPub(message.serialize());
+};
+
+Hub.prototype.createMessage = function (body) {
+  return this.messageFactory.build(body);
 };
 
 /**
